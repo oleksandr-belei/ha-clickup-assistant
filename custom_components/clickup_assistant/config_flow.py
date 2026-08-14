@@ -5,15 +5,28 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant import config_entries
+from homeassistant.helpers import selector
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from .api import ClickUpClient, ClickUpError
+from .api import (
+    ClickUpClient,
+    ClickUpError,
+    InvalidAuth,
+    InvalidTeam,
+    InvalidWorkspaceAccess,
+)
+
 from .const import CONF_API_KEY, CONF_TEAM_ID, DOMAIN
 
+# Використовуємо TextSelector для приховування пароля (зірочки)
 STEP_USER_SCHEMA = vol.Schema(
     {
-        vol.Required(CONF_API_KEY): str,
-        vol.Required(CONF_TEAM_ID): str,
+        vol.Required(CONF_API_KEY): selector.TextSelector(
+            selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
+        ),
+        vol.Required(CONF_TEAM_ID): selector.TextSelector(
+            selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
+        ),
     }
 )
 
@@ -27,7 +40,6 @@ class ClickUpAssistantConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
         
         if user_input is not None:
-            # Ініціалізуємо клієнт для перевірки
             client = ClickUpClient(
                 session=async_get_clientsession(self.hass),
                 api_key=user_input[CONF_API_KEY],
@@ -36,15 +48,21 @@ class ClickUpAssistantConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             
             try:
                 await client.async_validate()
+            except InvalidAuth:
+                errors["base"] = "invalid_auth"
+            except InvalidTeam:
+                errors["base"] = "invalid_team"
+            except InvalidWorkspaceAccess:
+                errors["base"] = "workspace_not_authorized"
             except ClickUpError:
                 errors["base"] = "cannot_connect"
             else:
                 await self.async_set_unique_id(user_input[CONF_TEAM_ID])
                 self._abort_if_unique_id_configured()
-                
+
                 return self.async_create_entry(
-                    title=f"ClickUp Workspace ({user_input[CONF_TEAM_ID]})", 
-                    data=user_input
+                    title=f"ClickUp Workspace ({user_input[CONF_TEAM_ID]})",
+                    data=user_input,
                 )
 
         return self.async_show_form(step_id="user", data_schema=STEP_USER_SCHEMA, errors=errors)

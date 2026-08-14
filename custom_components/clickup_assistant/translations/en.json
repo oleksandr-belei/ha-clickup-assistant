@@ -3,15 +3,18 @@
     "step": {
       "user": {
         "title": "Connect ClickUp",
-        "description": "Enter your API Key and Team ID to connect Home Assistant to ClickUp.",
+        "description": "To connect your workspace, you need an API key and a Team ID.\n\n- **API Key**: Go to ClickUp → Settings → Apps → Personal Token.\n- **Team ID**: Look at the URL in your browser when using ClickUp (e.g. `app.clickup.com/1234567/...` where `1234567` is the Team ID).",
         "data": {
-          "api_key": "API Key (Personal Token)",
-          "team_id": "Team ID (Workspace ID)"
+          "api_key": "API Key",
+          "team_id": "Team ID"
         }
       }
     },
     "error": {
-      "cannot_connect": "Failed to connect. Please check your API Key and Team ID."
+      "cannot_connect": "Failed to connect to ClickUp. Please try again later.",
+      "invalid_auth": "Invalid API Key. Please check your Personal Token.",
+      "invalid_team": "Invalid Team ID.",
+      "workspace_not_authorized": "This API Key does not have access to this workspace."
     },
     "abort": {
       "already_configured": "This Workspace is already configured."
