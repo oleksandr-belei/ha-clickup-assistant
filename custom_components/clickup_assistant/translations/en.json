@@ -1,0 +1,17 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect ClickUp",
+        "description": "Enter your API Key and Team ID to connect Home Assistant to ClickUp.",
+        "data": {
+          "api_key": "API Key (Personal Token)",
+          "team_id": "Team ID (Workspace ID)"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "This Workspace is already configured."
+    }
+  }
+}
