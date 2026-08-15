@@ -60,7 +60,7 @@ class ClickUpClient:
                 raise ClickUpError(
                     f"ClickUp API {resp.status}: {err_msg}"
                 )
-                
+
     async def _request(self, method: str, path: str, **kwargs: Any) -> Any:
         """Загальний метод для виконання запитів до ClickUp API."""
         async with self._session.request(
@@ -74,9 +74,20 @@ class ClickUpClient:
                 return await resp.json()
             return None
 
+    @staticmethod
+    def _summarize(task: dict[str, Any]) -> dict[str, Any]:
+        """Залишає лише найнеобхідніші поля для LLM, щоб економити токени."""
+        return {
+            "id": task.get("id"),
+            "name": task.get("name"),
+            "status": (task.get("status") or {}).get("status"),
+            "due_date": task.get("due_date"),
+            "priority": (task.get("priority") or {}).get("priority"),
+            "list": (task.get("list") or {}).get("name"),
+        }
+
     async def get_tasks(self) -> list[dict[str, Any]]:
         """Отримати список задач з робочого простору."""
-        # ClickUp API: GET /team/{team_id}/task
-        # Поки що беремо всі задачі без фільтрації, просто щоб перевірити зв'язок
         data = await self._request("GET", f"/team/{self._team_id}/task")
-        return data.get("tasks", [])
+        tasks = data.get("tasks", [])
+        return [self._summarize(t) for t in tasks]

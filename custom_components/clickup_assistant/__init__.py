@@ -1,8 +1,6 @@
 """The ClickUp Assistant integration."""
 from __future__ import annotations
 
-import logging  # <--- Додаємо логування
-
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -10,7 +8,6 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from .api import ClickUpClient
 from .const import CONF_API_KEY, CONF_TEAM_ID, DOMAIN
 
-_LOGGER = logging.getLogger(__name__)  # <--- Ініціалізуємо логер
 
 PLATFORMS: list[str] = []
 
@@ -24,17 +21,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = {"client": client}
-
-    # --- ТИМЧАСОВИЙ ТЕСТОВИЙ БЛОК ПОЧАТОК ---
-    async def _test_api():
-        try:
-            tasks = await client.get_tasks()
-            _LOGGER.warning("УСПІХ! Отримано задач: %s. Перша задача: %s", len(tasks), tasks[0] if tasks else "Немає задач")
-        except Exception as e:
-            _LOGGER.error("ПОМИЛКА при отриманні задач: %s", e)
-    
-    hass.async_create_task(_test_api())
-    # --- ТИМЧАСОВИЙ ТЕСТОВИЙ БЛОК КІНЕЦЬ ---
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
