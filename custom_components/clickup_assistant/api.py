@@ -1,6 +1,7 @@
 """Async ClickUp REST client."""
 from __future__ import annotations
 
+from typing import Any  # <--- Додай імпорт
 import aiohttp
 
 from .const import API_BASE
@@ -59,3 +60,23 @@ class ClickUpClient:
                 raise ClickUpError(
                     f"ClickUp API {resp.status}: {err_msg}"
                 )
+                
+    async def _request(self, method: str, path: str, **kwargs: Any) -> Any:
+        """Загальний метод для виконання запитів до ClickUp API."""
+        async with self._session.request(
+            method, f"{API_BASE}{path}", headers=self._headers, **kwargs
+        ) as resp:
+            if resp.status >= 400:
+                text = await resp.text()
+                raise ClickUpError(f"ClickUp API Error {resp.status}: {text}")
+            
+            if resp.content_type == "application/json":
+                return await resp.json()
+            return None
+
+    async def get_tasks(self) -> list[dict[str, Any]]:
+        """Отримати список задач з робочого простору."""
+        # ClickUp API: GET /team/{team_id}/task
+        # Поки що беремо всі задачі без фільтрації, просто щоб перевірити зв'язок
+        data = await self._request("GET", f"/team/{self._team_id}/task")
+        return data.get("tasks", [])
