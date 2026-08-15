@@ -5,6 +5,6 @@
   "config_flow": true,
   "documentation": "https://github.com/oleksandr-belei/ha-clickup-assistant",
   "iot_class": "cloud_polling",
-  "requirements": [],
+  "requirements": ["rapidfuzz>=3.5.2"],
   "version": "0.1.0"
 }
