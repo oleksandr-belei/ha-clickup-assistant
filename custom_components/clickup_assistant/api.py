@@ -105,8 +105,13 @@ class ClickUpClient:
                 for lst in folderless_lists_data.get("lists", []):
                     self._hierarchy_cache[lst["id"]] = f"{space_name} > {lst.get('name', 'Unknown List')}"
 
-    def _summarize(self, task: dict[str, Any]) -> dict[str, Any]:
+    def _summarize(
+        self, task: dict[str, Any], task_names: dict[str, str] | None = None
+    ) -> dict[str, Any]:
         """Keeps only the most necessary fields for the LLM to save tokens."""
+        if task_names is None:
+            task_names = {}
+            
         list_data = task.get("list") or {}
         list_id = list_data.get("id")
         
@@ -121,7 +126,7 @@ class ClickUpClient:
             except (ValueError, TypeError):
                 due_date_str = due_date_raw
 
-        return {
+        summary = {
             "id": task.get("id"),
             "name": task.get("name"),
             "status": (task.get("status") or {}).get("status"),
@@ -129,6 +134,12 @@ class ClickUpClient:
             "priority": (task.get("priority") or {}).get("priority"),
             "location": location,
         }
+        
+        parent_id = task.get("parent")
+        if parent_id and parent_id in task_names:
+            summary["parent"] = task_names[parent_id]
+
+        return summary
 
     async def get_tasks(self) -> list[dict[str, Any]]:
         """Get the list of tasks from the workspace with hierarchical context."""
@@ -138,4 +149,7 @@ class ClickUpClient:
         data = await self._request("GET", f"/team/{self._team_id}/task?subtasks=true")
         tasks = data.get("tasks", []) if data else []
         
-        return [self._summarize(t) for t in tasks]
+        # Create a lookup dictionary for parent names mapping
+        task_names = {t.get("id"): t.get("name") for t in tasks if t.get("id") and t.get("name")}
+        
+        return [self._summarize(t, task_names) for t in tasks]

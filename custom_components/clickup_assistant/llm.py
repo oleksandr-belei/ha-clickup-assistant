@@ -16,6 +16,9 @@ from .const import DOMAIN
 
 _PROMPT_TEMPLATE = """Use clickup_* tools to manage ClickUp tasks.
 Task search works via string matching. If unsure about exact names, call clickup_find_tasks without a query first to see available options.
+
+=== FORMATTING RULES ===
+If a task has a 'parent' field, you MUST visually group or indent it as a subtask under its parent task in your final response.
 {language_directives}"""
 
 
