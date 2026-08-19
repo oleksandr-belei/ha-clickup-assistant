@@ -1,8 +1,9 @@
 """Expose ClickUp task management as tools for the built-in Assist LLM API."""
+
 from __future__ import annotations
 
 import voluptuous as vol
-from rapidfuzz import process, fuzz, utils
+from rapidfuzz import fuzz, process, utils
 
 from homeassistant.components.llm import LLMTools
 from homeassistant.core import HomeAssistant, callback
@@ -12,27 +13,32 @@ from homeassistant.helpers.llm import LLMContext, ToolInput
 from homeassistant.util.json import JsonObjectType
 
 from .const import DOMAIN
-
-
-_PROMPT_TEMPLATE = """Use clickup_* tools to manage ClickUp tasks.
-Task search works via string matching. If unsure about exact names, call clickup_find_tasks without a query first to see available options.
-
-=== FORMATTING RULES ===
-If a task has a 'parent' field, you MUST visually group or indent it as a subtask under its parent task in your final response.
-{language_directives}"""
+from .prompt import build_clickup_prompt
 
 
 class ClickUpFindTasksTool(llm.Tool):
+    """Tool to find tasks in ClickUp."""
+
     name = "clickup_find_tasks"
-    description = "Tool to find tasks, projects, to-dos, or chores in ClickUp."
-    
-    def __init__(self, clickup_lang: str) -> None:
+    description = (
+        "Find tasks, projects, to-dos, or chores in ClickUp. "
+        "Use this tool when you need to search for existing ClickUp tasks."
+    )
+
+    def __init__(self, clickup_lang: str, entry_id: str) -> None:
         """Initialize the tool."""
+        self._entry_id = entry_id
         self.parameters = vol.Schema(
             {
                 vol.Optional(
                     "search_query",
-                    description=f"Optional. Query string translated into the workspace language ({clickup_lang}).",
+                    description=(
+                        "Optional search query. "
+                        f"When provided, it MUST be written in the "
+                        f"ClickUp workspace language ({clickup_lang}). "
+                        "Omit this parameter when you need to inspect "
+                        "available tasks without filtering."
+                    ),
                 ): str
             }
         )
@@ -43,10 +49,13 @@ class ClickUpFindTasksTool(llm.Tool):
         tool_input: ToolInput,
         llm_context: LLMContext,
     ) -> JsonObjectType:
-        if DOMAIN not in hass.data or not hass.data[DOMAIN]:
-            raise HomeAssistantError("ClickUp Assistant is not configured")
+        """Find matching ClickUp tasks."""
+        entry_data = hass.data.get(DOMAIN, {}).get(self._entry_id)
+        if entry_data is None:
+            raise HomeAssistantError(
+                "ClickUp Assistant is not configured"
+            )
 
-        entry_data = next(iter(hass.data[DOMAIN].values()))
         client = entry_data["client"]
 
         search_query = tool_input.tool_args.get("search_query")
@@ -56,7 +65,10 @@ class ClickUpFindTasksTool(llm.Tool):
 
             if search_query:
                 search_dict = {
-                    idx: f"{task.get('name', '')} {task.get('location', '')}"
+                    idx: (
+                        f"{task.get('name', '')} "
+                        f"{task.get('location', '')}"
+                    )
                     for idx, task in enumerate(tasks)
                 }
 
@@ -69,51 +81,59 @@ class ClickUpFindTasksTool(llm.Tool):
                     score_cutoff=60,
                 )
 
-                filtered_tasks = [tasks[match[2]] for match in matches]
+                filtered_tasks = [
+                    tasks[match[2]]
+                    for match in matches
+                ]
+
                 return {
                     "tasks": filtered_tasks,
-                    "note": f"Filtered by query: {search_query}"
+                    "note": f"Filtered by query: {search_query}",
                 }
 
             return {"tasks": tasks}
 
         except Exception as err:
-            raise HomeAssistantError(f"ClickUp API error: {err}") from err
+            raise HomeAssistantError(
+                f"ClickUp API error: {err}"
+            ) from err
 
 
 @callback
 def async_get_tools(
-    hass: HomeAssistant, llm_context: LLMContext, api_id: str
+    hass: HomeAssistant,
+    llm_context: LLMContext,
+    api_id: str,
 ) -> LLMTools | None:
-    """Register tools in Assist."""
+    """Register ClickUp tools in Assist."""
     if DOMAIN not in hass.data or api_id != "assist":
         return None
 
     entries = hass.config_entries.async_entries(DOMAIN)
-    options = entries[0].options if entries else {}
-    
-    clickup_lang = options.get("clickup_language", "en")
-    translate_task_names = options.get("translate_task_names", True)
-    
-    language_directives = ""
-    
-    # Build strict rules only if translation is needed
-    if clickup_lang != llm_context.language:
-        rules = [
-            f"Workspace language is '{clickup_lang}', conversation is in '{llm_context.language}'.",
-            f"1. You MUST translate user queries into '{clickup_lang}' BEFORE passing them to tools."
-        ]
-        
-        if translate_task_names:
-            rules.append(f"2. When responding, the task's 'name' field MUST be translated into '{llm_context.language}'.")
-            rules.append("3. The task's 'location', 'list', and 'status' fields MUST NOT be translated. Keep them EXACTLY as returned.")
-        
-        # Format as a highly visible block for the LLM
-        language_directives = "\n\n=== STRICT LANGUAGE RULES ===\n" + "\n".join(rules)
+    if not entries:
+        return None
 
-    prompt = _PROMPT_TEMPLATE.format(language_directives=language_directives)
+    entry = entries[0]
+    options = entry.options
+
+    clickup_lang = options.get("clickup_language", "en")
+    translate_task_names = options.get(
+        "translate_task_names",
+        True,
+    )
+
+    prompt = build_clickup_prompt(
+        clickup_lang=clickup_lang,
+        conversation_lang=llm_context.language,
+        translate_task_names=translate_task_names,
+    )
 
     return LLMTools(
-        tools=[ClickUpFindTasksTool(clickup_lang=clickup_lang)],
+        tools=[
+            ClickUpFindTasksTool(
+                clickup_lang=clickup_lang,
+                entry_id=entry.entry_id,
+            ),
+        ],
         prompt=prompt,
     )
