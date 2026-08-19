@@ -4,6 +4,8 @@ from __future__ import annotations
 from typing import Any
 import aiohttp
 
+from homeassistant.util import dt as dt_util
+
 from .const import API_BASE
 
 
@@ -110,11 +112,20 @@ class ClickUpClient:
         
         location = self._hierarchy_cache.get(list_id, list_data.get("name", "Unknown"))
 
+        due_date_raw = task.get("due_date")
+        due_date_str = None
+        if due_date_raw:
+            try:
+                dt_utc = dt_util.utc_from_timestamp(int(due_date_raw) / 1000)
+                due_date_str = dt_util.as_local(dt_utc).strftime("%Y-%m-%d")
+            except (ValueError, TypeError):
+                due_date_str = due_date_raw
+
         return {
             "id": task.get("id"),
             "name": task.get("name"),
             "status": (task.get("status") or {}).get("status"),
-            "due_date": task.get("due_date"),
+            "due_date": due_date_str,
             "priority": (task.get("priority") or {}).get("priority"),
             "location": location,
         }
