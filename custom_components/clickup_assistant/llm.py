@@ -67,6 +67,7 @@ class ClickUpFindTasksTool(llm.Tool):
                 search_dict = {
                     idx: (
                         f"{task.get('name', '')} "
+                        f"{task.get('parent', '')} "
                         f"{task.get('location', '')}"
                     )
                     for idx, task in enumerate(tasks)
