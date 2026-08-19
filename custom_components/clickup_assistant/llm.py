@@ -14,48 +14,25 @@ from homeassistant.util.json import JsonObjectType
 from .const import DOMAIN
 
 
+_PROMPT_TEMPLATE = """Use clickup_* tools to manage ClickUp tasks.
+Task search works via string matching. If unsure about exact names, call clickup_find_tasks without a query first to see available options.
+{language_directives}"""
+
+
 class ClickUpFindTasksTool(llm.Tool):
     name = "clickup_find_tasks"
+    description = "Tool to find tasks, projects, to-dos, or chores in ClickUp."
     
-    def __init__(
-        self,
-        options: dict,
-        response_language: str,
-    ) -> None:
-        """Initialize the tool with dynamic instructions based on options."""
-        clickup_lang = options.get("clickup_language", "en")
-        translate_task_names = options.get("translate_task_names", True)
-
-        # Робимо інструкцію для параметра максимально "захищеною" від інших правил
+    def __init__(self, clickup_lang: str) -> None:
+        """Initialize the tool."""
         self.parameters = vol.Schema(
             {
                 vol.Optional(
                     "search_query",
-                    description=f"CRITICAL: You MUST translate the user's spoken query into {clickup_lang} BEFORE passing it here. NEVER pass {response_language} in this field.",
+                    description=f"Optional. Query string translated into the workspace language ({clickup_lang}).",
                 ): str
             }
         )
-
-        # Розділяємо логіку на чіткі етапи для моделі
-        description = (
-            "Tool to find tasks, projects, to-dos, or chores in ClickUp.\n"
-            "Call this tool whenever the user asks about their work, plans, or mentions specific projects/activities.\n\n"
-            "=== STEP 1: INPUT RULES ===\n"
-            f"The ClickUp workspace is in {clickup_lang}. If you use 'search_query', it MUST be in {clickup_lang}.\n\n"
-            "=== STEP 2: OUTPUT RULES ==="
-        )
-
-        if translate_task_names:
-            description += (
-                "\nAfter receiving the JSON response from this tool, you MUST translate all task names and locations "
-                f"into {response_language} for your final answer. Do not output the original language."
-            )
-        else:
-            description += (
-                "\nPreserve all task names and locations exactly as returned by the tool in your final answer."
-            )
-
-        self.description = description
 
     async def async_call(
         self,
@@ -80,12 +57,11 @@ class ClickUpFindTasksTool(llm.Tool):
                     for idx, task in enumerate(tasks)
                 }
 
-                # Find the best matches (60% cutoff to filter out irrelevant noise)
                 matches = process.extract(
                     search_query,
                     search_dict,
-                    scorer=fuzz.token_set_ratio,       # Змінили алгоритм
-                    processor=utils.default_process,   # Додали нормалізацію (нижній регістр)
+                    scorer=fuzz.token_set_ratio,
+                    processor=utils.default_process,
                     limit=15,
                     score_cutoff=60,
                 )
@@ -93,7 +69,7 @@ class ClickUpFindTasksTool(llm.Tool):
                 filtered_tasks = [tasks[match[2]] for match in matches]
                 return {
                     "tasks": filtered_tasks,
-                    "note": f"Filtered by query: {search_query}",
+                    "note": f"Filtered by query: {search_query}"
                 }
 
             return {"tasks": tasks}
@@ -112,12 +88,29 @@ def async_get_tools(
 
     entries = hass.config_entries.async_entries(DOMAIN)
     options = entries[0].options if entries else {}
+    
+    clickup_lang = options.get("clickup_language", "en")
+    translate_task_names = options.get("translate_task_names", True)
+    
+    language_directives = ""
+    
+    # Build strict rules only if translation is needed
+    if clickup_lang != llm_context.language:
+        rules = [
+            f"Workspace language is '{clickup_lang}', conversation is in '{llm_context.language}'.",
+            f"1. You MUST translate user queries into '{clickup_lang}' BEFORE passing them to tools."
+        ]
+        
+        if translate_task_names:
+            rules.append(f"2. When responding, the task's 'name' field MUST be translated into '{llm_context.language}'.")
+            rules.append("3. The task's 'location', 'list', and 'status' fields MUST NOT be translated. Keep them EXACTLY as returned.")
+        
+        # Format as a highly visible block for the LLM
+        language_directives = "\n\n=== STRICT LANGUAGE RULES ===\n" + "\n".join(rules)
+
+    prompt = _PROMPT_TEMPLATE.format(language_directives=language_directives)
 
     return LLMTools(
-        tools=[
-            ClickUpFindTasksTool(
-                options,
-                response_language=llm_context.language,
-            )
-        ],
+        tools=[ClickUpFindTasksTool(clickup_lang=clickup_lang)],
+        prompt=prompt,
     )
