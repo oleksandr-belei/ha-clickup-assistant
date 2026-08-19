@@ -25,9 +25,15 @@ class ClickUpFindTasksTool(llm.Tool):
         "Use this tool when you need to search for existing ClickUp tasks."
     )
 
-    def __init__(self, clickup_lang: str, entry_id: str) -> None:
+    def __init__(
+        self,
+        clickup_lang: str,
+        entry_id: str,
+        include_subtasks: bool,
+    ) -> None:
         """Initialize the tool."""
         self._entry_id = entry_id
+        self._include_subtasks = include_subtasks
         self.parameters = vol.Schema(
             {
                 vol.Optional(
@@ -61,7 +67,9 @@ class ClickUpFindTasksTool(llm.Tool):
         search_query = tool_input.tool_args.get("search_query")
 
         try:
-            tasks = await client.get_tasks()
+            tasks = await client.get_tasks(
+                include_subtasks=self._include_subtasks
+            )
 
             if search_query:
                 search_dict = {
@@ -120,8 +128,9 @@ def async_get_tools(
     clickup_lang = options.get("clickup_language", "en")
     translate_task_names = options.get(
         "translate_task_names",
-        True,
+        False,
     )
+    include_subtasks = options.get("include_subtasks", True)
 
     prompt = build_clickup_prompt(
         clickup_lang=clickup_lang,
@@ -134,6 +143,7 @@ def async_get_tools(
             ClickUpFindTasksTool(
                 clickup_lang=clickup_lang,
                 entry_id=entry.entry_id,
+                include_subtasks=include_subtasks,
             ),
         ],
         prompt=prompt,

@@ -141,15 +141,17 @@ class ClickUpClient:
 
         return summary
 
-    async def get_tasks(self) -> list[dict[str, Any]]:
+    async def get_tasks(self, include_subtasks: bool = True) -> list[dict[str, Any]]:
         """Get the list of tasks from the workspace with hierarchical context."""
         if not self._hierarchy_cache:
             await self.async_build_hierarchy_cache()
 
-        data = await self._request("GET", f"/team/{self._team_id}/task?subtasks=true")
+        # Динамічно підставляємо параметр
+        subtasks_param = "true" if include_subtasks else "false"
+        data = await self._request("GET", f"/team/{self._team_id}/task?subtasks={subtasks_param}")
+        
         tasks = data.get("tasks", []) if data else []
         
-        # Create a lookup dictionary for parent names mapping
         task_names = {t.get("id"): t.get("name") for t in tasks if t.get("id") and t.get("name")}
         
         return [self._summarize(t, task_names) for t in tasks]

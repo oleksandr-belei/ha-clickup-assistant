@@ -56,6 +56,10 @@ class ClickUpOptionsFlowHandler(config_entries.OptionsFlow):
                 "translate_task_names",
                 default=options.get("translate_task_names", True),
             ): selector.BooleanSelector(),
+            vol.Required(
+                "include_subtasks",
+                default=options.get("include_subtasks", True),
+            ): selector.BooleanSelector(),
         }
 
         data_schema = vol.Schema(schema_dict)

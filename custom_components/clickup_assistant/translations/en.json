@@ -20,17 +20,19 @@
       "already_configured": "This Workspace is already configured."
     }
   },
-    "options": {
+  "options": {
     "step": {
       "init": {
         "title": "ClickUp Assistant Settings",
         "data": {
           "clickup_language": "Tasks Language",
-          "translate_task_names": "Translate Task Names"
+          "translate_task_names": "Translate Task Names",
+          "include_subtasks": "Include Subtasks"
         },
         "data_description": {
           "clickup_language": "The language in which your tasks are written. The AI uses this to accurately understand search queries and filter your tasks.",
-          "translate_task_names": "If enabled, the AI will dynamically translate task names into your current Assist language."
+          "translate_task_names": "If enabled, the AI will dynamically translate task names into your current Assist language.",
+          "include_subtasks": "Allow the AI to search and interact with subtasks. If disabled, only parent tasks and projects will be available."
         }
       }
     }
